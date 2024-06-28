@@ -1,3 +1,5 @@
+package logic
+
 case class Card(suit: String, value: String)
 object Card {
   val suits = List("\u2665", "\u2666", "\u2663", "\u2660")

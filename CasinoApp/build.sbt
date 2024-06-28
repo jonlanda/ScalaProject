@@ -6,3 +6,6 @@ lazy val root = (project in file("."))
   .settings(
     name := "CasinoApp"
   )
+
+libraryDependencies += "org.scala-lang.modules" %% "scala-swing" % "3.0.0"
+

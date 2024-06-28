@@ -1,13 +1,15 @@
+package logic
+
 class Casino {
   private var players: List[Player] = List()
   private val blackjack = new Blackjack()
 
   def start(): Unit = {
-    println("Welcome to the Casino!")
+    println("Welcome to the logic.Casino!")
     var running = true
     while (running) {
-      println("1. Add Player")
-      println("2. Play Blackjack")
+      println("1. Add logic.Player")
+      println("2. Play logic.Blackjack")
       println("3. Exit")
       print("Choose an option: ")
       val choice = scala.io.StdIn.readInt()
@@ -29,7 +31,7 @@ class Casino {
     val player = Player(name, balance)
     players = player :: players
     blackjack.addPlayer(player)
-    println(s"Player $name added with balance $balance.")
+    println(s"logic.Player $name added with balance $balance.")
   }
 
   private def playBlackjack(): Unit = {
