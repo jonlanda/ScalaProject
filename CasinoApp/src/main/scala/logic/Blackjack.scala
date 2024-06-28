@@ -65,26 +65,37 @@ class Blackjack {
     }
   }
 
-  def stand(player: Player): Unit = {
-    // Mark the player as having finished their turn
+  def dealerTurn(log: String => Unit): Unit = {
+    var dealerTotal = handValue(dealerHand)
+    log(s"Dealer's initial hand: ${dealerHand.mkString(", ")} with value: $dealerTotal \n")
+    while (dealerTotal < 17) {
+      val newCard = drawCard()
+      newCard match {
+        case Some(card) =>
+          dealerHand :+= card
+          log(s"Dealer draws: ${card.toString}\n")
+          dealerTotal = handValue(dealerHand)
+          log(s"Dealer's hand: ${dealerHand.mkString(", ")} with value: $dealerTotal \n")
+        case None =>
+          log("No more cards in the deck.")
+      }
+    }
+    if (dealerTotal > 21) {
+      log("Dealer busts!")
+    } else {
+      log(s"Dealer stands with: $dealerTotal")
+    }
   }
 
-  def dealerTurn(log: String => Unit): String = {
-    while (handValue(dealerHand) < 17 || (handValue(dealerHand) == 17 && containsAce(dealerHand))) {
-      val newCard = deck.drawCard().get
-      dealerHand :+= newCard
-      log(s"Dealer draws: $newCard")
-    }
-    if (handValue(dealerHand) > 21) {
-      "Dealer busts!"
-    } else {
-      s"Dealer stands with: ${handValue(dealerHand)}"
-    }
+  def drawCard(): Option[Card] = {
+    val card = deck.drawCard()
+    card.foreach(deck.removeCard)
+    card
   }
 
   def determineWinners(log: String => Unit): List[String] = {
+    dealerTurn(log)
     val dealerTotal = handValue(dealerHand)
-    log(s"Dealer's final hand: ${dealerHand.mkString(", ")} with value: $dealerTotal \n")
     val results = players.map { player =>
       val playerTotal = handValue(playerHands(player))
       if (playerTotal > 21) {
@@ -104,11 +115,8 @@ class Blackjack {
 
   def getPlayerHand(player: Player): List[Card] = playerHands(player)
 
-  def getAllPlayersHands: Map[Player, List[Card]] = playerHands
-
   def getDealerHand: List[Card] = dealerHand
-  def getPlayerBalance(player: Player): Double = player.balance
-  def getPlayerBet(player: Player): Double = player.bet
+
   def handValue(hand: List[Card]): Int = {
     val values = hand.map {
       case Card(_, "A") => 11
@@ -121,9 +129,5 @@ class Blackjack {
     } else {
       total
     }
-  }
-
-  private def containsAce(hand: List[Card]): Boolean = {
-    hand.exists(_.value == "A")
   }
 }

@@ -1,7 +1,6 @@
 package UI.blackjack
 
 import logic.{Blackjack, Card}
-
 import scala.swing._
 import scala.swing.event._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -71,7 +70,7 @@ class GamePanel(blackjack: Blackjack, switchToUserPanel: () => Unit) extends Box
     currentPlayerHandArea.text = ""
     blackjack.start()
     val dealerHand = blackjack.getDealerHand
-    dealerHandArea.text = dealerHand.map(cardToString).mkString(", ")
+    dealerHandArea.text = dealerHand.headOption.map(cardToString).getOrElse("") // Show only the first card
     updatePlayersList()
     currentPlayerIndex = 0
     if (blackjack.getPlayers.nonEmpty) {
@@ -94,8 +93,10 @@ class GamePanel(blackjack: Blackjack, switchToUserPanel: () => Unit) extends Box
   }
 
   def dealerTurnAndResults(): Unit = {
+    val log = (message: String) => dealerHandArea.append(message + "\n")
     dealerHandArea.text = blackjack.getDealerHand.map(cardToString).mkString(", ")
-    val results = blackjack.determineWinners(message => dealerHandArea.append(message + "\n"))
+    blackjack.dealerTurn(log)
+    val results = blackjack.determineWinners(log)
     results.foreach(result => dealerHandArea.append(result + "\n"))
   }
 

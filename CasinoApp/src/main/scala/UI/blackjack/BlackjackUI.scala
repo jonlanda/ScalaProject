@@ -85,8 +85,8 @@ object BlackjackUI extends SimpleSwingApplication {
       contents += playerBalanceField
       contents += addPlayerButton
     }
-    contents += goToBetPanelButton
     contents += new ScrollPane(playerTable)
+    contents += goToBetPanelButton
 
     listenTo(addPlayerButton, goToBetPanelButton)
 

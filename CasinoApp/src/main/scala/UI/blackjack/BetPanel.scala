@@ -19,8 +19,6 @@ class BetPanel(
 
   def updateBetPanel(): Unit = {
     contents.clear()
-    contents += returnButton
-    contents += startGameButton
 
     blackjack.getPlayers.foreach { player =>
       val betField = new TextField {
@@ -42,6 +40,9 @@ class BetPanel(
       }
 
       listenTo(placeBetButton)
+
+      contents += returnButton
+      contents += startGameButton
 
       reactions += {
         case ButtonClicked(`placeBetButton`) =>
