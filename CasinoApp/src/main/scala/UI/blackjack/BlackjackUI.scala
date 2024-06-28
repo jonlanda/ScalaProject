@@ -1,10 +1,12 @@
-import scala.swing._
-import scala.swing.event._
-import javax.swing.JPanel
 import logic._
 
 import java.awt.CardLayout
+import javax.swing.JPanel
 import javax.swing.table.DefaultTableModel
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import scala.swing._
+import scala.swing.event._
 
 object BlackjackUI extends SimpleSwingApplication {
   val blackjack = new Blackjack()
@@ -45,6 +47,7 @@ object BlackjackUI extends SimpleSwingApplication {
   }
 
   def switchToUserPanel(): Unit = {
+    userPanel.updatePlayerList()
     cardLayout.show(cardPanel, UserPanelName)
   }
 
@@ -161,7 +164,16 @@ object BlackjackUI extends SimpleSwingApplication {
   }
 
   class GamePanel extends BoxPanel(Orientation.Vertical) {
-    val messageArea = new TextArea { rows = 10; columns = 40; editable = false }
+    val dealerHandLabel = new Label("Dealer's Hand")
+    val dealerHandArea = new TextArea { rows = 1; columns = 20; editable = false }
+
+    val currentPlayerLabel = new Label("")
+    val currentPlayerHandArea = new TextArea { rows = 1; columns = 20; editable = false }
+
+    val playersList = new ListView[String] {
+      visibleRowCount = 10
+      fixedCellWidth = 200
+    }
 
     val hitButton = new Button {
       text = "Hit"
@@ -175,45 +187,85 @@ object BlackjackUI extends SimpleSwingApplication {
       text = "Return"
     }
 
+    contents += new BoxPanel(Orientation.Vertical) {
+      contents += dealerHandLabel
+      contents += dealerHandArea
+    }
+
+    contents += new FlowPanel {
+      contents += new BoxPanel(Orientation.Vertical) {
+        contents += new Label("Players:")
+        contents += new ScrollPane(playersList)
+      }
+      contents += new BoxPanel(Orientation.Vertical) {
+        contents += currentPlayerLabel
+        contents += currentPlayerHandArea
+      }
+    }
+
     contents += new FlowPanel {
       contents += hitButton
       contents += standButton
-      contents += returnButton
     }
-    contents += new ScrollPane(messageArea)
+    contents += returnButton
 
     listenTo(hitButton, standButton, returnButton)
 
     var currentPlayerIndex: Int = 0
 
     def resetGame(): Unit = {
-      messageArea.text = ""
+      dealerHandArea.text = ""
+      currentPlayerLabel.text = ""
+      currentPlayerHandArea.text = ""
       blackjack.start()
       val dealerHand = blackjack.getDealerHand
-      messageArea.append(s"Dealer's visible card: ${cardToString(dealerHand.head)}\n")
-      val playerHands = blackjack.getAllPlayersHands
-      playerHands.foreach { case (player, hand) =>
-        messageArea.append(s"${player.name}'s hand: ${hand.map(cardToString).mkString(", ")}\n")
-      }
+      dealerHandArea.text = dealerHand.map(cardToString).mkString(", ")
+      updatePlayersList()
       currentPlayerIndex = 0
       if (blackjack.getPlayers.nonEmpty) {
         showCurrentPlayerTurn()
       }
     }
 
+    def updatePlayersList(): Unit = {
+      playersList.listData = blackjack.getPlayers.map(player => s"${player.name}")
+    }
+
     def showCurrentPlayerTurn(): Unit = {
       if (currentPlayerIndex < blackjack.getPlayers.length) {
         val currentPlayer = blackjack.getPlayers(currentPlayerIndex)
-        messageArea.append(s"\n${currentPlayer.name}'s turn\n")
+        currentPlayerLabel.text = s"${currentPlayer.name}'s turn"
+        currentPlayerHandArea.text = blackjack.getPlayerHand(currentPlayer).map(cardToString).mkString(", ")
       } else {
         dealerTurnAndResults()
       }
     }
 
     def dealerTurnAndResults(): Unit = {
-      messageArea.append(blackjack.dealerTurn(messageArea.append(_)) + "\n")
-      val results = blackjack.determineWinners(messageArea.append(_))
-      results.foreach(result => messageArea.append(result + "\n"))
+      dealerHandArea.text = blackjack.getDealerHand.map(cardToString).mkString(", ")
+      val results = blackjack.determineWinners(message => dealerHandArea.append(message + "\n"))
+      results.foreach(result => dealerHandArea.append(result + "\n"))
+    }
+
+    def playerBusts(): Unit = {
+      if (currentPlayerIndex < blackjack.getPlayers.length) {
+        val currentPlayer = blackjack.getPlayers(currentPlayerIndex)
+        val playerTotal = blackjack.handValue(blackjack.getPlayerHand(currentPlayer))
+        currentPlayerHandArea.append(s"\n${currentPlayer.name} busts with $playerTotal!\n")
+        updatePlayerListWithScores()
+        currentPlayerIndex += 1
+        Future {
+          Thread.sleep(2000)
+          showCurrentPlayerTurn()
+        }
+      }
+    }
+
+    def updatePlayerListWithScores(): Unit = {
+      playersList.listData = blackjack.getPlayers.map { player =>
+        val playerTotal = blackjack.handValue(blackjack.getPlayerHand(player))
+        s"${player.name}: $playerTotal"
+      }
     }
 
     reactions += {
@@ -222,17 +274,18 @@ object BlackjackUI extends SimpleSwingApplication {
           val currentPlayer = blackjack.getPlayers(currentPlayerIndex)
           val result = blackjack.hit(currentPlayer)
           val newCard = blackjack.getPlayerHand(currentPlayer).last
-          messageArea.append(s"${currentPlayer.name} picks up: ${cardToString(newCard)}\n")
-          messageArea.append(result + "\n")
+          currentPlayerHandArea.append(s", ${cardToString(newCard)}")
           if (blackjack.handValue(blackjack.getPlayerHand(currentPlayer)) > 21) {
-            currentPlayerIndex += 1
-            showCurrentPlayerTurn()
+            playerBusts()
           }
         }
 
       case ButtonClicked(`standButton`) =>
         if (currentPlayerIndex < blackjack.getPlayers.length) {
-          messageArea.append("Player stands\n")
+          val currentPlayer = blackjack.getPlayers(currentPlayerIndex)
+          val playerTotal = blackjack.handValue(blackjack.getPlayerHand(currentPlayer))
+          currentPlayerHandArea.append(s"\nPlayer stands with $playerTotal\n")
+          updatePlayerListWithScores()
           currentPlayerIndex += 1
           showCurrentPlayerTurn()
         }
