@@ -33,17 +33,18 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          const latestTag = await github.repos.listTags({
+          const tags = await github.rest.repos.listTags({
             owner: context.repo.owner,
             repo: context.repo.repo,
             per_page: 1,
           });
-          if (latestTag.data.length === 0) {
+          if (tags.data.length === 0) {
             core.setOutput("tag", "v1.0.0");
           } else {
-            const latestVersion = latestTag.data[0].name.substring(1).split('.').map(Number);
-            latestVersion[2]++;
-            core.setOutput("tag", `v${latestVersion.join('.')}`);
+            const latestTag = tags.data[0].name;
+            const versionParts = latestTag.substring(1).split('.').map(Number);
+            versionParts[2]++;
+            core.setOutput("tag", `v${versionParts.join('.')}`);
           }
     - name: Create Release
       id: create_release
