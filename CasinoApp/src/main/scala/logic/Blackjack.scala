@@ -1,133 +1,128 @@
 package logic
 
-class Blackjack {
-  private var deck: Deck = _
-  private var players: List[Player] = List()
-  private var playerHands: Map[Player, List[Card]] = Map()
-  private var playerBets: Map[Player, Double] = Map()
-  private var dealerHand: List[Card] = List()
-
-  def addPlayer(player: Player): Unit = {
-    players = player :: players
+case class Blackjack(
+                      deck: Deck,
+                      players: List[Player],
+                      playerHands: Map[Player, List[Card]],
+                      playerBets: Map[Player, Double],
+                      dealerHand: List[Card]
+                    ) {
+  def addPlayer(player: Player): Blackjack = {
+    copy(players = player :: players)
   }
 
   def getPlayers: List[Player] = players
 
-  def start(): Unit = {
-    resetDeck()
-    dealInitialCards()
+  def start(): Blackjack = {
+    val shuffledDeck = deck.shuffle()
+    val initialState = Blackjack(shuffledDeck, players, Map(), Map(), List())
+    initialState.dealInitialCards()
   }
 
-  private def resetDeck(): Unit = {
-    deck = new Deck()
-    playerHands = Map()
-    playerBets = Map()
-    dealerHand = List()
+  private def dealInitialCards(): Blackjack = {
+    val (updatedDeck, updatedHands) = players.foldLeft((deck, Map[Player, List[Card]]())) {
+      case ((d, hands), player) =>
+        val (card1, d1) = d.drawCard()
+        val (card2, d2) = d1.drawCard()
+        (d2, hands + (player -> List(card1.get, card2.get)))
+    }
+    val (dealerCard1, deckAfterDealerCard1) = updatedDeck.drawCard()
+    val (dealerCard2, finalDeck) = deckAfterDealerCard1.drawCard()
+    val initialDealerHand = List(dealerCard1.get, dealerCard2.get)
+    copy(deck = finalDeck, playerHands = updatedHands, dealerHand = initialDealerHand)
   }
 
-  def placeBet(player: Player, bet: Double): Boolean = {
+  def placeBet(player: Player, bet: Double): Either[String, Blackjack] = {
     if (bet <= player.balance) {
-      player.bet = bet
-      playerBets += (player -> bet)
-      player.balance -= bet
-      true
+      val updatedPlayer = player.copy(balance = player.balance - bet, bet = bet)
+      val updatedPlayers = players.map(p => if (p == player) updatedPlayer else p)
+      Right(copy(playerBets = playerBets + (player -> bet), players = updatedPlayers))
     } else {
-      false
+      Left(s"${player.name} has insufficient balance")
     }
   }
 
-  private def dealInitialCards(): Unit = {
-    players.foreach { player =>
-      val hand = List(deck.drawCard(), deck.drawCard()).flatten
-      playerHands += (player -> hand)
-    }
-    dealerHand = List(deck.drawCard(), deck.drawCard()).flatten
+  def getDealerHand: List[Card] = dealerHand
+
+  def getPlayerHand(player: Player): List[Card] = playerHands.getOrElse(player, List())
+
+  def hit(player: Player): (Option[Card], Blackjack) = {
+    val (card, updatedDeck) = deck.drawCard()
+    val updatedHand = card.map(c => playerHands(player) :+ c).getOrElse(playerHands(player))
+    (card, copy(deck = updatedDeck, playerHands = playerHands + (player -> updatedHand)))
   }
 
-  def playerTurn(player: Player): String = {
-    val hand = playerHands(player)
-    if (handValue(hand) > 21) {
-      s"${player.name} busts!"
+  def handValue(hand: List[Card]): Int = {
+    val values = hand.map(_.value).map {
+      case "A" => 11
+      case "K" | "Q" | "J" => 10
+      case n => n.toInt
+    }.sum
+
+    if (values > 21 && hand.exists(_.value == "A")) {
+      values - 10
     } else {
-      s"${player.name}'s hand: ${hand.mkString(", ")}"
+      values
     }
   }
 
-  def hit(player: Player): String = {
-    val newCard = deck.drawCard()
-    newCard match {
-      case Some(card) =>
-        val updatedHand = playerHands(player) :+ card
-        playerHands += (player -> updatedHand)
-        deck.removeCard(card)
-        playerTurn(player)
-      case None => "No more cards in the deck."
-    }
-  }
-
-  def dealerTurn(log: String => Unit): Unit = {
+  def dealerTurn(log: String => Unit): Blackjack = {
+    var updatedDealerHand = dealerHand
+    var updatedDeck = deck
     var dealerTotal = handValue(dealerHand)
-    log(s"Dealer's initial hand: ${dealerHand.mkString(", ")} with value: $dealerTotal \n")
     while (dealerTotal < 17) {
-      val newCard = drawCard()
+      val (newCard, newDeck) = updatedDeck.drawCard()
       newCard match {
         case Some(card) =>
-          dealerHand :+= card
-          log(s"Dealer draws: ${card.toString}\n")
-          dealerTotal = handValue(dealerHand)
-          log(s"Dealer's hand: ${dealerHand.mkString(", ")} with value: $dealerTotal \n")
+          updatedDealerHand :+= card
+          updatedDeck = newDeck
+          dealerTotal = handValue(updatedDealerHand)
+          log(s"\nDealer draws: ${Card.cardToString(card)}\n")
+          log(s"Dealer's hand: ${updatedDealerHand.map(Card.cardToString).mkString(", ")} with value: $dealerTotal")
         case None =>
-          log("No more cards in the deck.")
+          log("\nNo more cards in the deck.")
       }
     }
     if (dealerTotal > 21) {
-      log("Dealer busts!")
+      log("\nDealer busts!")
     } else {
-      log(s"Dealer stands with: $dealerTotal")
+      log(s"\nDealer stands with: $dealerTotal")
     }
+    copy(deck = updatedDeck, dealerHand = updatedDealerHand)
   }
 
-  def drawCard(): Option[Card] = {
-    val card = deck.drawCard()
-    card.foreach(deck.removeCard)
-    card
-  }
+  def determineWinners(log: String => Unit): (Blackjack, List[String]) = {
+    val updatedBlackjack = dealerTurn(log)
+    val dealerTotal = handValue(updatedBlackjack.dealerHand)
 
-  def determineWinners(log: String => Unit): List[String] = {
-    dealerTurn(log)
-    val dealerTotal = handValue(dealerHand)
-    val results = players.map { player =>
-      val playerTotal = handValue(playerHands(player))
-      if (playerTotal > 21) {
+    val (finalPlayers, results) = updatedBlackjack.players.map { player =>
+      val playerTotal = updatedBlackjack.handValue(updatedBlackjack.getPlayerHand(player))
+      val updatedPlayer = if (playerTotal > 21) {
+        player
+      } else if (dealerTotal > 21 || playerTotal > dealerTotal) {
+        player.copy(balance = player.balance + 2 * player.bet)
+      } else if (playerTotal == dealerTotal) {
+        player.copy(balance = player.balance + player.bet)
+      } else {
+        player
+      }
+      val resultMessage = if (playerTotal > 21) {
         s"${player.name} busts and loses their bet of ${player.bet}"
       } else if (dealerTotal > 21 || playerTotal > dealerTotal) {
-        player.balance += 2 * player.bet
         s"${player.name} wins and receives ${2 * player.bet}"
       } else if (playerTotal == dealerTotal) {
-        player.balance += player.bet
         s"${player.name} pushes and gets back their bet of ${player.bet}"
       } else {
         s"${player.name} loses their bet of ${player.bet}"
       }
-    }
-    results
+      (updatedPlayer, resultMessage)
+    }.unzip
+
+    val finalBlackjack = updatedBlackjack.copy(players = finalPlayers)
+    (finalBlackjack, results)
   }
+}
 
-  def getPlayerHand(player: Player): List[Card] = playerHands(player)
-
-  def getDealerHand: List[Card] = dealerHand
-
-  def handValue(hand: List[Card]): Int = {
-    val values = hand.map {
-      case Card(_, "A") => 11
-      case Card(_, "K") | Card(_, "Q") | Card(_, "J") => 10
-      case Card(_, value) => value.toInt
-    }
-    val total = values.sum
-    if (total > 21 && hand.exists(_.value == "A")) {
-      total - 10
-    } else {
-      total
-    }
-  }
+object Blackjack {
+  def apply(): Blackjack = new Blackjack(Deck(), List(), Map(), Map(), List())
 }

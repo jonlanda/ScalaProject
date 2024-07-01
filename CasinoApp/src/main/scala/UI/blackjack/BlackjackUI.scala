@@ -8,7 +8,7 @@ import scala.swing._
 import scala.swing.event._
 
 object BlackjackUI extends SimpleSwingApplication {
-  val blackjack = new Blackjack()
+  var blackjack = Blackjack()
 
   // Panel names for CardLayout
   val UserPanelName = "UserPanel"
@@ -21,8 +21,8 @@ object BlackjackUI extends SimpleSwingApplication {
 
   // Panels for different screens
   val userPanel = new UserPanel
-  val betPanel = new BetPanel(blackjack, switchToUserPanel, switchToGamePanel, updateUserPanel)
-  val gamePanel = new GamePanel(blackjack, switchToUserPanel)
+  val betPanel = new BetPanel(blackjack, switchToUserPanel _, switchToGamePanel, updateUserPanel)
+  val gamePanel = new GamePanel(blackjack, switchToUserPanel _)
 
   // Add panels to the CardLayout panel
   cardPanel.add(userPanel.peer, UserPanelName)
@@ -36,16 +36,19 @@ object BlackjackUI extends SimpleSwingApplication {
   }
 
   def switchToBetPanel(): Unit = {
+    betPanel.blackjack = blackjack
     betPanel.updateBetPanel()
     cardLayout.show(cardPanel, BetPanelName)
   }
 
-  def switchToGamePanel(): Unit = {
+  def switchToGamePanel(updatedBlackjack: Blackjack): Unit = {
+    blackjack = updatedBlackjack
+    gamePanel.resetGame(blackjack)
     cardLayout.show(cardPanel, GamePanelName)
-    gamePanel.resetGame()
   }
 
-  def switchToUserPanel(): Unit = {
+  def switchToUserPanel(updatedBlackjack: Blackjack): Unit = {
+    blackjack = updatedBlackjack
     userPanel.updatePlayerList()
     cardLayout.show(cardPanel, UserPanelName)
   }
@@ -95,7 +98,7 @@ object BlackjackUI extends SimpleSwingApplication {
         val name = playerNameField.text
         val balance = playerBalanceField.text.toDouble
         val player = Player(name, balance)
-        blackjack.addPlayer(player)
+        blackjack = blackjack.addPlayer(player)
         updatePlayerList()
 
       case ButtonClicked(`goToBetPanelButton`) =>
@@ -103,7 +106,7 @@ object BlackjackUI extends SimpleSwingApplication {
     }
 
     def updatePlayerList(): Unit = {
-      tableModel.setRowCount(0) // Clear existing rows
+      tableModel.setRowCount(0)
       blackjack.getPlayers.foreach { player =>
         tableModel.addRow(Array[AnyRef](player.name, player.balance.toString))
       }
