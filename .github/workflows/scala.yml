@@ -28,14 +28,31 @@ jobs:
     - name: Create fat JAR
       run: sbt assembly
       working-directory: ./CasinoApp
+    - name: Get latest tag
+      id: get_latest_tag
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const latestTag = await github.repos.listTags({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            per_page: 1,
+          });
+          if (latestTag.data.length === 0) {
+            core.setOutput("tag", "v1.0.0");
+          } else {
+            const latestVersion = latestTag.data[0].name.substring(1).split('.').map(Number);
+            latestVersion[2]++;
+            core.setOutput("tag", `v${latestVersion.join('.')}`);
+          }
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: v1.0.0
-        release_name: Release v1.0.0
+        tag_name: ${{ steps.get_latest_tag.outputs.tag }}
+        release_name: Release ${{ steps.get_latest_tag.outputs.tag }}
         draft: false
         prerelease: false
     - name: Upload JAR to Release
@@ -45,5 +62,5 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./CasinoApp/target/scala-2.13/CasinoApp-assembly-0.1.0-SNAPSHOT.jar
-        asset_name: CasinoApp-assembly-0.1.0-SNAPSHOT.jar
+        asset_name: CasinoApp-assembly-${{ steps.get_latest_tag.outputs.tag }}.jar
         asset_content_type: application/java-archive
