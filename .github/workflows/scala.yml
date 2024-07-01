@@ -18,7 +18,6 @@ jobs:
     - uses: actions/checkout@v4
     - name: Set up JDK 11
       uses: actions/setup-java@v3
-      working-directory: ./CasinoApp
       with:
         java-version: '11'
         distribution: 'temurin'
@@ -28,4 +27,5 @@ jobs:
       working-directory: ./CasinoApp
     - name: Upload dependency graph
       uses: scalacenter/sbt-dependency-submission@ab086b50c947c9774b70f39fc7f6e20ca2706c91
-      working-directory: ./CasinoApp
+      with:
+        working-directory: ./CasinoApp
