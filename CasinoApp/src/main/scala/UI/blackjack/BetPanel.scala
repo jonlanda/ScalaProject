@@ -4,12 +4,7 @@ import logic.Blackjack
 import scala.swing._
 import scala.swing.event._
 
-class BetPanel(
-                blackjack: Blackjack,
-                switchToUserPanel: () => Unit,
-                switchToGamePanel: () => Unit,
-                updateUserPanel: () => Unit
-              ) extends BoxPanel(Orientation.Vertical) {
+class BetPanel(var blackjack: Blackjack, switchToUserPanel: (Blackjack) => Unit, switchToGamePanel: (Blackjack) => Unit, updateUserPanel: () => Unit) extends BoxPanel(Orientation.Vertical) {
   val returnButton = new Button {
     text = "Return to User Panel"
   }
@@ -47,10 +42,14 @@ class BetPanel(
       reactions += {
         case ButtonClicked(`placeBetButton`) =>
           val bet = betField.text.toDouble
-          if (blackjack.placeBet(player, bet)) {
-            betPlacedCheckBox.selected = true
-          } else {
-            Dialog.showMessage(contents.head, s"${player.name} has insufficient balance", title = "Bet Error")
+          println(s"Placing bet of $bet for player ${player.name}")
+          blackjack.placeBet(player, bet) match {
+            case Right(updatedBlackjack) =>
+              blackjack = updatedBlackjack
+              betPlacedCheckBox.selected = true
+              println(s"Updated blackjack state: $blackjack")
+            case Left(error) =>
+              Dialog.showMessage(contents.head, error, title = "Bet Error")
           }
           updateUserPanel()
       }
@@ -61,9 +60,10 @@ class BetPanel(
 
   reactions += {
     case ButtonClicked(`returnButton`) =>
-      switchToUserPanel()
+      switchToUserPanel(blackjack)
 
     case ButtonClicked(`startGameButton`) =>
-      switchToGamePanel()
+      println(s"Starting game with state: $blackjack")
+      switchToGamePanel(blackjack)
   }
 }

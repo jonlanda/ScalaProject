@@ -1,3 +1,3 @@
 package logic
 
-case class Player(name: String, var balance: Double, var bet: Double = 0)
+case class Player(name: String, balance: Double, bet: Double = 0)
