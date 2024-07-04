@@ -2,7 +2,7 @@ import UI.blackjack.{BetPanel, GamePanel}
 import logic._
 
 import java.awt.CardLayout
-import javax.swing.JPanel
+import javax.swing.{JOptionPane, JPanel}
 import javax.swing.table.DefaultTableModel
 import scala.swing._
 import scala.swing.event._
@@ -94,13 +94,19 @@ object BlackjackUI extends SimpleSwingApplication {
       case ButtonClicked(`addPlayerButton`) =>
         val name = playerNameField.text
         val balance = playerBalanceField.text.toDouble
-        val player = Player(name, balance)
-        blackjack.addPlayer(player)
-        updatePlayerList()
+        if (checkPlayerListForDuplicates(blackjack.getPlayers, name)) {
+          // Show an error message if the name already exists in the list
+          JOptionPane.showMessageDialog(null, s"Der Name ${name} wurde bereits hinzugefügt.", "Fehler", JOptionPane.ERROR_MESSAGE)
+        } else {
+          val player = Player(name, balance)
+          blackjack.addPlayer(player)
+          updatePlayerList()
+        }
 
       case ButtonClicked(`goToBetPanelButton`) =>
         switchToBetPanel()
     }
+
 
     def updatePlayerList(): Unit = {
       tableModel.setRowCount(0) // Clear existing rows
@@ -108,5 +114,11 @@ object BlackjackUI extends SimpleSwingApplication {
         tableModel.addRow(Array[AnyRef](player.name, player.balance.toString))
       }
     }
+
+    def checkPlayerListForDuplicates(players: List[Player], nameToCheck: String): Boolean = {
+      val trimmedNameToCheck = nameToCheck.trim.replaceAll("\\s+", " ") // Normalisieren des Namens
+      players.exists(player => player.name.trim.replaceAll("\\s+", " ") == trimmedNameToCheck)
+    }
+
   }
 }
