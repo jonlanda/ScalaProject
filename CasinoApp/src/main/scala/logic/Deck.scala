@@ -2,19 +2,23 @@ package logic
 
 import scala.util.Random
 
-class Deck {
-  private var cards: List[Card] = Random.shuffle(Card.createDeck())
-
-  def drawCard(): Option[Card] = {
+case class Deck(cards: List[Card]) {
+  def drawCard(): (Option[Card], Deck) = {
     cards match {
-      case Nil => None
-      case head :: tail =>
-        cards = tail
-        Some(head)
+      case Nil => (None, this)
+      case head :: tail => (Some(head), Deck(tail))
     }
   }
 
-  def removeCard(card: Card): Unit = {
-    cards = cards.filterNot(_ == card)
+  def removeCard(card: Card): Deck = {
+    Deck(cards.filterNot(_ == card))
   }
+
+  def shuffle(): Deck = {
+    Deck(Random.shuffle(cards))
+  }
+}
+
+object Deck {
+  def apply(): Deck = new Deck(Random.shuffle(Card.createDeck()))
 }

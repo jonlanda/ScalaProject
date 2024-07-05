@@ -6,7 +6,7 @@ import scala.swing.event._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class GamePanel(blackjack: Blackjack, switchToUserPanel: () => Unit) extends BoxPanel(Orientation.Vertical) {
+class GamePanel(var blackjack: Blackjack, switchToUserPanel: (Blackjack) => Unit) extends BoxPanel(Orientation.Vertical) {
   val dealerHandLabel = new Label("Dealer's Hand")
   val dealerHandArea = new TextArea {
     rows = 1
@@ -64,13 +64,14 @@ class GamePanel(blackjack: Blackjack, switchToUserPanel: () => Unit) extends Box
 
   var currentPlayerIndex: Int = 0
 
-  def resetGame(): Unit = {
+  def resetGame(updatedBlackjack: Blackjack): Unit = {
     dealerHandArea.text = ""
     currentPlayerLabel.text = ""
     currentPlayerHandArea.text = ""
-    blackjack.start()
+    println(s"Starting game with initial state: $updatedBlackjack")
+    blackjack = updatedBlackjack.start()
     val dealerHand = blackjack.getDealerHand
-    dealerHandArea.text = dealerHand.headOption.map(cardToString).getOrElse("") // Show only the first card
+    dealerHandArea.text = "Dealer's initial hand: " + dealerHand.headOption.map(Card.cardToString).getOrElse("") // Show only the first card
     updatePlayersList()
     currentPlayerIndex = 0
     if (blackjack.getPlayers.nonEmpty) {
@@ -79,24 +80,24 @@ class GamePanel(blackjack: Blackjack, switchToUserPanel: () => Unit) extends Box
   }
 
   def updatePlayersList(): Unit = {
-    playersList.listData = blackjack.getPlayers.map(player => s"${player.name}")
+    playersList.listData = blackjack.getPlayers.map(player => s"${player.name}: ${player.balance} (${player.bet})")
   }
 
   def showCurrentPlayerTurn(): Unit = {
     if (currentPlayerIndex < blackjack.getPlayers.length) {
       val currentPlayer = blackjack.getPlayers(currentPlayerIndex)
-      currentPlayerLabel.text = s"${currentPlayer.name}'s turn"
-      currentPlayerHandArea.text = blackjack.getPlayerHand(currentPlayer).map(cardToString).mkString(", ")
+      currentPlayerLabel.text = s"${currentPlayer.name}'s Hand"
+      currentPlayerHandArea.text = blackjack.getPlayerHand(currentPlayer).map(Card.cardToString(_)).mkString(", ")
+      println(s"Current player: ${currentPlayer.name}, Balance: ${currentPlayer.balance}, Bet: ${currentPlayer.bet}")
     } else {
-      dealerTurnAndResults()
+      dealerTurn()
     }
   }
 
-  def dealerTurnAndResults(): Unit = {
-    val log = (message: String) => dealerHandArea.append(message + "\n")
-    dealerHandArea.text = blackjack.getDealerHand.map(cardToString).mkString(", ")
-    blackjack.dealerTurn(log)
-    val results = blackjack.determineWinners(log)
+  def dealerTurn(): Unit = {
+    dealerHandArea.text = blackjack.getDealerHand.map(Card.cardToString(_)).mkString(", ")
+    val (updatedBlackjack, results) = blackjack.determineWinners(log)
+    blackjack = updatedBlackjack
     results.foreach(result => dealerHandArea.append(result + "\n"))
   }
 
@@ -117,7 +118,7 @@ class GamePanel(blackjack: Blackjack, switchToUserPanel: () => Unit) extends Box
   def updatePlayerListWithScores(): Unit = {
     playersList.listData = blackjack.getPlayers.map { player =>
       val playerTotal = blackjack.handValue(blackjack.getPlayerHand(player))
-      s"${player.name}: $playerTotal"
+      s"${player.name}: ${playerTotal} (${player.bet})"
     }
   }
 
@@ -125,11 +126,13 @@ class GamePanel(blackjack: Blackjack, switchToUserPanel: () => Unit) extends Box
     case ButtonClicked(`hitButton`) =>
       if (currentPlayerIndex < blackjack.getPlayers.length) {
         val currentPlayer = blackjack.getPlayers(currentPlayerIndex)
-        val result = blackjack.hit(currentPlayer)
-        val newCard = blackjack.getPlayerHand(currentPlayer).last
-        currentPlayerHandArea.append(s", ${cardToString(newCard)}")
-        if (blackjack.handValue(blackjack.getPlayerHand(currentPlayer)) > 21) {
-          playerBusts()
+        val (newCard, updatedBlackjack) = blackjack.hit(currentPlayer)
+        blackjack = updatedBlackjack
+        newCard.foreach { card =>
+          currentPlayerHandArea.append(s", ${Card.cardToString(card)}")
+          if (blackjack.handValue(blackjack.getPlayerHand(currentPlayer)) > 21) {
+            playerBusts()
+          }
         }
       }
 
@@ -144,10 +147,10 @@ class GamePanel(blackjack: Blackjack, switchToUserPanel: () => Unit) extends Box
       }
 
     case ButtonClicked(`returnButton`) =>
-      switchToUserPanel()
+      switchToUserPanel(blackjack)
   }
 
-  def cardToString(card: Card): String = {
-    s"${card.value}${card.suit}"
+  def log(message: String): Unit = {
+    dealerHandArea.append(message + "\n")
   }
 }
